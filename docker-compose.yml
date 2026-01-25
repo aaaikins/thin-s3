@@ -1,0 +1,54 @@
+services:
+  # 1. The "Thin" S3 API
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_REGION=us-east-1
+      - S3_BUCKET=test-bucket
+      - S3_ENDPOINT_URL=http://localstack:4566
+      - REDIS_URL=redis://redis:6379
+      - DEBUG=true
+    depends_on:
+      - redis
+      - localstack
+    volumes:
+      - .:/app
+    networks:
+      - thin-s3-network
+
+  # Redis for metadata & TTL tracking
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - thin-s3-network
+
+  # LocalStack for local S3 simulation
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - "${TMPDIR:-/tmp}/localstack:/tmp/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - thin-s3-network
+
+networks:
+  thin-s3-network:
+    driver: bridge
