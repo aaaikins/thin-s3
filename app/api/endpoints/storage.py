@@ -3,10 +3,10 @@
 from fastapi import APIRouter
 from typing import Optional
 
-router = APIRouter(prefix="/storage", tags=["storage"])
+api_router = APIRouter(prefix="/storage", tags=["storage"])
 
 
-@router.post("/lifecycle")
+@api_router.post("/lifecycle")
 async def set_lifecycle_policy(
     bucket: str,
     ttl_days: int,
@@ -17,14 +17,14 @@ async def set_lifecycle_policy(
     pass
 
 
-@router.get("/objects/{object_id}")
+@api_router.get("/objects/{object_id}")
 async def get_object_metadata(object_id: str) -> dict:
     # TODO: Implement metadata retrieval
     """Retrieve object metadata including TTL and lifecycle info"""
     pass
 
 
-@router.delete("/objects/{object_id}")
+@api_router.delete("/objects/{object_id}")
 async def delete_object(object_id: str) -> dict:
     # TODO: Implement object deletion
     """Delete an object and remove TTL tracking"""

@@ -1,6 +1,6 @@
 """Configuration management using Pydantic BaseSettings"""
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 
@@ -25,9 +25,8 @@ class Settings(BaseSettings):
     # TTL configuration
     default_ttl_seconds: int = 3600
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    #Load .env file
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra='allow')
 
 
 # Create settings instance

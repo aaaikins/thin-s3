@@ -1,65 +1,33 @@
-"""S3 service with boto3 wrappers"""
-
 import boto3
-from typing import Optional, BinaryIO
+from botocore.config import Config
 from app.core.config import settings
 
-
 class S3Service:
-    """AWS S3 operations wrapper"""
-    
     def __init__(self):
-        # TODO: Initialize boto3 S3 client with settings
-        pass
-    
-    async def upload_file(
-        self,
-        bucket: str,
-        key: str,
-        file_obj: BinaryIO,
-        metadata: Optional[dict] = None
-    ) -> dict:
-        """Upload a file to S3"""
-        # TODO: Implement S3 file upload
-        pass
-    
-    async def generate_presigned_url(
-        self,
-        bucket: str,
-        key: str,
-        expires_in: int = 3600
-    ) -> str:
-        """Generate a presigned URL for direct upload"""
-        # TODO: Implement presigned URL generation
-        pass
-    
-    async def get_object_metadata(
-        self,
-        bucket: str,
-        key: str
-    ) -> dict:
-        """Retrieve object metadata"""
-        # TODO: Implement metadata retrieval
-        pass
-    
-    async def delete_object(
-        self,
-        bucket: str,
-        key: str
-    ) -> dict:
-        """Delete an object from S3"""
-        # TODO: Implement object deletion
-        pass
-    
-    async def set_lifecycle_policy(
-        self,
-        bucket: str,
-        ttl_days: int
-    ) -> dict:
-        """Configure lifecycle policies"""
-        # TODO: Implement lifecycle policy configuration
-        pass
+        self.client = boto3.client(
+            "s3",
+            endpoint_url=settings.s3_endpoint_url,
+            aws_access_key_id=settings.aws_access_key_id,
+            aws_secret_access_key=settings.aws_secret_access_key,
+            region_name=settings.aws_region,
+            # SigV4 is required for presigned URLs in many regions
+            config=Config(signature_version="s3v4")
+        )
+        self.bucket = settings.s3_bucket
 
+    def create_bucket_if_not_exists(self):
+        """Ensures the sandbox environment is ready on startup."""
+        try:
+            self.client.head_bucket(Bucket=self.bucket)
+        except self.client.exceptions.ClientError:
+            self.client.create_bucket(Bucket=self.bucket)
 
-# Create singleton instance
+    def generate_presigned_upload_url(self, object_name: str, expiration: int = 3600):
+        """Generates a URL for a simple PUT upload."""
+        return self.client.generate_presigned_url(
+            'put_object',
+            Params={'Bucket': self.bucket, 'Key': object_name},
+            ExpiresIn=expiration
+        )
+
 s3_service = S3Service()

@@ -3,10 +3,10 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from typing import Optional
 
-router = APIRouter(prefix="/upload", tags=["upload"])
+api_router = APIRouter(prefix="/upload", tags=["upload"])
 
 
-@router.post("/presigned")
+@api_router.post("/presigned")
 async def get_presigned_url(
     bucket: str,
     key: str,
@@ -17,7 +17,7 @@ async def get_presigned_url(
     pass
 
 
-@router.post("/multipart")
+@api_router.post("/multipart")
 async def upload_file(
     file: UploadFile = File(...),
     bucket: str = None,
