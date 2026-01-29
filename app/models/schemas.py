@@ -1,29 +1,28 @@
-"""Pydantic schemas for request/response validation"""
-
 from pydantic import BaseModel, Field
-from typing import Optional
-from datetime import datetime
+from typing import List, Optional
 
+class UploadInitRequest(BaseModel):
+    file_name: str
+    content_type: str = "application/octet-stream"
 
-# TODO: Define UploadResponse schema
-class UploadResponse(BaseModel):
-    """Response from file upload"""
-    pass
+class UploadInitResponse(BaseModel):
+    file_id: str
+    upload_id: str
+    key: str
 
+class PartUploadRequest(BaseModel):
+    file_id: str
+    upload_id: str
+    part_numbers: List[int]
 
-# TODO: Define PresignedURLResponse schema
-class PresignedURLResponse(BaseModel):
-    """Presigned URL response"""
-    pass
+class PartUploadURL(BaseModel):
+    part_number: int
+    url: str
 
+class PartUploadResponse(BaseModel):
+    parts: List[PartUploadURL]
 
-# TODO: Define ObjectMetadata schema
-class ObjectMetadata(BaseModel):
-    """Object metadata schema"""
-    pass
-
-
-# TODO: Define LifecyclePolicy schema
-class LifecyclePolicy(BaseModel):
-    """Lifecycle policy configuration"""
-    pass
+class CompleteUploadRequest(BaseModel):
+    file_id: str
+    upload_id: str
+    parts: List[dict]  # List of {"ETag": str, "PartNumber": int}
