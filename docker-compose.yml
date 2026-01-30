@@ -1,5 +1,5 @@
 services:
-  # 1. The "Thin" S3 API
+  # The "Thin" S3 API
   app:
     build: .
     ports:
@@ -19,6 +19,19 @@ services:
       - .:/app
     networks:
       - thin-s3-network
+
+  # Background Worker for processing tasks
+  worker:
+      build: .
+      command: python -m app.worker.tasks
+      depends_on:
+        - redis
+        - localstack
+      environment:
+        - REDIS_URL=redis://redis:6379/0
+        - S3_ENDPOINT_URL=http://localstack:4566
+      networks:
+        - thin-s3-network
 
   # Redis for metadata & TTL tracking
   redis:
@@ -41,10 +54,16 @@ services:
     environment:
       - SERVICES=s3
       - DEBUG=1
-      - DATA_DIR=/tmp/localstack/data
+      - DATA_DIR=/var/localstack
       - DOCKER_HOST=unix:///var/run/docker.sock
+      - PERSISTENCE=1
+      - CLEAN_ON_EXIT=false
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - S3_SKIP_SIGNATURE_VALIDATION=true
     volumes:
-      - "${TMPDIR:-/tmp}/localstack:/tmp/localstack"
+      - localstack-data:/var/localstack
       - "/var/run/docker.sock:/var/run/docker.sock"
     networks:
       - thin-s3-network
@@ -52,3 +71,6 @@ services:
 networks:
   thin-s3-network:
     driver: bridge
+
+volumes:
+  localstack-data:

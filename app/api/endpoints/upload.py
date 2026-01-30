@@ -11,28 +11,50 @@ import uuid
 api_router = APIRouter(prefix="/upload", tags=["upload"])
 
 @api_router.post("/initiate")
-async def initiate_upload(data: UploadInitRequest) -> UploadInitResponse:
-    # Use UUID for a guaranteed unique file key in S3
+async def initiate_upload(data: UploadInitRequest):
     file_id = str(uuid.uuid4())
     s3_key = f"uploads/{file_id}/{data.file_name}"
     
-    upload_id = s3_service.initiate_multipart_upload(
-        key=s3_key,
-        content_type=data.content_type
-    )
+    upload_id = s3_service.initiate_multipart_upload(key=s3_key, content_type=data.content_type)
     
-    # Ensure 'key' is saved so the other endpoints know WHERE the file is in S3
-    await redis_cache.set_metadata(
-        key=f"upload:{file_id}",
+    # Use the new dual-key logic
+    await redis_cache.set_leased_metadata(
+        file_id=file_id,
         value={
             "upload_id": upload_id,
-            "key": s3_key, 
+            "key": s3_key,
             "file_name": data.file_name
         },
         ttl=settings.default_ttl_seconds
     )
     
     return UploadInitResponse(file_id=file_id, upload_id=upload_id, key=s3_key)
+
+
+@api_router.post("/presign-parts")
+async def create_presigned_parts(data: PartUploadRequest) -> PartUploadResponse:
+
+    """Give the client the "keys" to upload specific chunks."""
+
+    # The metadata is stored under the `upload:{file_id}` key
+    metadata = await redis_cache.get_metadata(f"upload:{data.file_id}")
+
+    if not metadata or metadata["upload_id"] != data.upload_id:
+        raise HTTPException(status_code=404, detail="Upload session not found")
+
+
+    presigned_urls = []
+
+    for part_number in data.part_numbers:
+        url = s3_service.generate_presigned_part_url(
+            key=metadata["key"],
+            upload_id=metadata["upload_id"],
+            part_number=part_number
+        )
+
+        presigned_urls.append(PartUploadURL(part_number=part_number, url=url))
+    
+    return PartUploadResponse(parts=presigned_urls)
 
 @api_router.post("/complete")
 async def complete_upload(data: CompleteUploadRequest):
