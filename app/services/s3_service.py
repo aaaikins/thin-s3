@@ -61,4 +61,18 @@ class S3Service:
             MultipartUpload={"Parts": parts},
         )
 
+    def list_uploaded_parts(self, key: str, upload_id: str):
+        """Lists all parts that have been uploaded for a multipart upload."""
+        response = self.client.list_parts(
+            Bucket=self.bucket,
+            Key=key,
+            UploadId=upload_id
+        )
+        # Extract part numbers from the response
+        parts = response.get("Parts", [])
+        return {
+            "part_count": len(parts),
+            "parts": [{"part_number": p["PartNumber"], "etag": p["ETag"], "size": p["Size"]} for p in parts]
+        }
+
 s3_service = S3Service()

@@ -31,7 +31,7 @@ async def initiate_upload(data: UploadInitRequest):
     return UploadInitResponse(file_id=file_id, upload_id=upload_id, key=s3_key)
 
 
-@api_router.post("/presign-parts")
+@api_router.get("/presign-parts")
 async def create_presigned_parts(data: PartUploadRequest) -> PartUploadResponse:
 
     """Give the client the "keys" to upload specific chunks."""
@@ -72,8 +72,8 @@ async def complete_upload(data: CompleteUploadRequest):
             parts=data.parts
         )
         
-        # CLEANUP: Remove from Redis now that it's finalized
-        await redis_cache.client.delete(redis_key)
+        # Keep metadata in Redis for download/lease operations
+        # It will be auto-deleted based on TTL setting
         
         return {"status": "success", "location": response.get("Location")}
         
