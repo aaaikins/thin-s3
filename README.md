@@ -1,138 +1,243 @@
-# The 'Thin' S3 Service
+# Thin S3
 
-A lightweight, high-performance FastAPI-based S3 service with built-in caching, background task processing, and secure authentication.
+A lightweight, efficient S3 file management API built with FastAPI, featuring multipart uploads, presigned URLs, automatic cache expiration, and Redis-backed lease management.
 
-## Features
+## Overview
 
-- **FastAPI Framework**: Modern, fast web framework for building APIs
-- **S3 Integration**: Seamless AWS S3 storage operations
-- **Redis Caching**: High-performance in-memory caching layer
-- **Background Tasks**: Asynchronous task processing with Celery
-- **Security**: JWT-based authentication and authorization
-- **CORS Support**: Cross-origin resource sharing enabled
-- **Docker Support**: Complete containerization with Docker Compose
-- **Health Checks**: Built-in health check endpoint
+Thin S3 is a production-ready file storage service that simplifies S3 interactions with intelligent caching and automatic cleanup. It provides a clean REST API for uploading, downloading, and managing files with configurable TTL-based expiration policies.
 
-## Prerequisites
+**Key Features:**
+- ✅ Multipart upload support with presigned URLs
+- ✅ Presigned download URLs for secure file access
+- ✅ Redis-backed lease management with automatic expiration
+- ✅ Configurable file TTL and cleanup intervals
+- ✅ Full REST API with FastAPI
+- ✅ LocalStack support for local S3 development
+- ✅ Docker & Docker Compose ready
+- ✅ Comprehensive test suite
 
-- Python 3.9+
-- Docker & Docker Compose (optional, for containerized deployment)
-- AWS S3 credentials (for S3 operations)
-- Redis server (for caching)
+## Architecture
 
-## Installation
+![Thin S3 Architecture](architectural_diagram.png)
 
-### Local Setup
+The system is composed of the following components:
 
-1. **Clone the repository**
+- **FastAPI Application**: REST API server handling file operations
+- **S3 Service**: Boto3-based S3 client for bucket and multipart operations
+- **Redis Cache**: Metadata storage with automatic TTL expiration
+- **LocalStack/S3**: Object storage backend (supports both local and AWS)
+- **Celery Workers**: Asynchronous task queue for background cleanup (optional)
+
+## Project Structure
+
+```
+thin-s3/
+├── app/
+│   ├── api/
+│   │   ├── endpoints/
+│   │   │   ├── upload.py      # Upload initiation and presigned URLs
+│   │   │   ├── storage.py     # Download, lease, and delete operations
+│   │   └── router.py          # API router aggregation
+│   ├── core/
+│   │   ├── config.py          # Settings and environment config
+│   │   └── security.py        # Security utilities
+│   ├── models/
+│   │   └── schemas.py         # Pydantic request/response schemas
+│   ├── services/
+│   │   ├── s3_service.py      # S3 operations wrapper
+│   │   └── redis_cache.py     # Redis client and metadata handling
+│   ├── worker/
+│   │   └── tasks.py           # Celery background tasks
+│   └── main.py                # FastAPI application entry point
+├── requirements.txt           # Python dependencies
+├── Dockerfile                 # Container image definition
+├── docker-compose.yml         # Multi-container orchestration
+├── .env.example               # Environment variable template
+└── test_lifecycle.py          # End-to-end test suite
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.11+
+- Docker & Docker Compose (recommended)
+- AWS credentials or LocalStack (for S3)
+- Redis (standalone or via Docker)
+
+### Installation
+
+1. **Clone the repository:**
    ```bash
    git clone <repository-url>
    cd thin-s3
    ```
 
-2. **Create a virtual environment**
+2. **Set up environment variables:**
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure environment variables**
-   ```bash
-   cp .env.example .env  # If available
+   cp .env.example .env
    # Edit .env with your configuration
    ```
 
-## Configuration
+3. **Install dependencies (local development):**
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
 
-Set the following environment variables in your `.env` file:
+### Running with Docker Compose
 
-```env
-# AWS S3
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_S3_BUCKET=your_bucket_name
-AWS_REGION=us-east-1
-
-# Redis
-REDIS_URL=redis://localhost:6379
-
-# API
-API_DEBUG=True
-API_HOST=0.0.0.0
-API_PORT=8000
-
-# Security
-SECRET_KEY=your_secret_key_here
-```
-
-## Running the Application
-
-### Local Development
-
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-The API will be available at `http://localhost:8000`
-- API Documentation: `http://localhost:8000/docs`
-- Alternative Docs: `http://localhost:8000/redoc`
-
-### Docker Deployment
+The easiest way to get started:
 
 ```bash
 docker-compose up --build
 ```
 
-The service will be available at `http://localhost:8000`
+This starts:
+- FastAPI application on `http://localhost:8000`
+- LocalStack S3 on `http://localhost:4566`
+- Redis on `localhost:6379`
+
+### Running Locally
+
+Start the services:
+
+```bash
+# Terminal 1: Start Redis
+redis-server
+
+# Terminal 2: Start LocalStack (optional, for local S3)
+localstack start
+
+# Terminal 3: Start the FastAPI app
+uvicorn app.main:app --reload
+```
+
+Access the API documentation at `http://localhost:8000/docs`
 
 ## API Endpoints
 
-### Health Check
+### Upload Operations
 
-```
-GET /health
-```
+**Initiate Multipart Upload**
+```http
+POST /upload/initiate
+Content-Type: application/json
+
+{
+  "file_name": "document.pdf",
+  "content_type": "application/pdf"
+}
 
 Response:
-```json
 {
-  "status": "healthy",
-  "service": "The 'Thin' S3 Service",
-  "version": "1.0.0"
+  "file_id": "uuid-string",
+  "upload_id": "multipart-upload-id",
+  "key": "uploads/uuid-string/document.pdf"
+}
+```
+
+**Get Presigned Part URLs**
+```http
+POST /upload/presign-parts
+Content-Type: application/json
+
+{
+  "file_id": "uuid-string",
+  "upload_id": "multipart-upload-id",
+  "part_numbers": [1, 2, 3]
+}
+
+Response:
+{
+  "part_urls": [
+    {
+      "part_number": 1,
+      "url": "presigned-url-for-part-1"
+    },
+    ...
+  ]
+}
+```
+
+**Complete Multipart Upload**
+```http
+POST /upload/complete
+Content-Type: application/json
+
+{
+  "file_id": "uuid-string",
+  "upload_id": "multipart-upload-id",
+  "parts": [
+    {"part_number": 1, "etag": "etag-value"},
+    ...
+  ]
+}
+
+Response:
+{
+  "status": "completed",
+  "location": "s3://bucket-name/uploads/uuid-string/document.pdf"
 }
 ```
 
 ### Storage Operations
 
-- **List Storage**: `GET /api/storage`
-- **Get File**: `GET /api/storage/{file_id}`
-- **Delete File**: `DELETE /api/storage/{file_id}`
+**Get Download URL**
+```http
+GET /storage/{file_id}/download
 
-### Upload Operations
-
-- **Upload File**: `POST /api/upload`
-- **Get Upload Status**: `GET /api/upload/{upload_id}`
-
-## Project Structure
-
+Response:
+{
+  "download_url": "presigned-download-url"
+}
 ```
-.
-├── app/
-│   ├── api/               # API routes and endpoints
-│   │   └── endpoints/     # Endpoint implementations
-│   ├── core/              # Core configuration and security
-│   ├── models/            # Data models and schemas
-│   ├── services/          # Business logic (S3, Redis)
-│   └── worker/            # Background task definitions
-├── tests/                 # Test suite
-├── docker-compose.yml     # Docker Compose configuration
-├── Dockerfile             # Docker image definition
-└── requirements.txt       # Python dependencies
+
+**Update File Lease**
+```http
+PATCH /storage/{file_id}/lease?ttl_seconds=7200
+
+Response:
+{
+  "status": "success",
+  "new_lease": "7200 seconds"
+}
+```
+
+**Delete File**
+```http
+DELETE /storage/{file_id}
+
+Response:
+{
+  "status": "deleted",
+  "file_id": "uuid-string"
+}
+```
+
+## Configuration
+
+Edit `.env` to customize:
+
+```env
+# AWS Configuration
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_REGION=us-east-1
+S3_BUCKET=your-bucket-name
+S3_ENDPOINT_URL=http://localstack:4566  # Use http://s3.amazonaws.com for AWS
+
+# Redis Configuration
+REDIS_URL=redis://localhost:6379
+
+# FastAPI Configuration
+APP_NAME=Thin S3
+DEBUG=false
+
+# TTL Configuration
+DEFAULT_TTL_DAYS=30                # File expiration time
+CLEANUP_INTERVAL_SECONDS=3600      # Cleanup job frequency
 ```
 
 ## Testing
@@ -140,40 +245,107 @@ Response:
 Run the test suite:
 
 ```bash
-pytest
+pytest test_lifecycle.py -v
 ```
 
-Run with coverage:
+For async tests with detailed output:
 
 ```bash
-pytest --cov=app
+pytest test_lifecycle.py -v -s --tb=short
 ```
+
+## How It Works
+
+### File Upload Flow
+1. Client initiates multipart upload → receive `file_id` and `upload_id`
+2. Client requests presigned URLs for each part
+3. Client uploads parts directly to S3 using presigned URLs
+4. Client completes multipart upload → file is finalized in S3
+5. Metadata stored in Redis with automatic expiration
+
+### File Expiration & Cleanup
+- Each file gets a **TTL (Time To Live)** configured via `DEFAULT_TTL_DAYS`
+- Redis automatically deletes expired metadata keys
+- Optionally use Celery workers for background cleanup tasks
+- Lease can be renewed using the `/storage/{file_id}/lease` endpoint
+
+### Dual-Key Redis Strategy
+- **Metadata Key** (`upload:{file_id}`): Stores file metadata, deleted on expiration
+- **Lease Key** (`lease:{file_id}`): Tracks active file lease, can be extended
 
 ## Development
 
-### Adding New Endpoints
+### Adding a New Endpoint
 
-1. Create a new endpoint file in `app/api/endpoints/`
-2. Define your route functions
-3. Include the router in `app/api/router.py`
+1. Create endpoint function in `app/api/endpoints/`
+2. Add Pydantic schema to `app/models/schemas.py`
+3. Register route in `app/api/router.py`
+4. Add tests to `test_lifecycle.py`
 
-### Adding New Services
+### Extending S3 Service
 
-1. Create a new service module in `app/services/`
-2. Implement your business logic
-3. Import and use in your endpoints
+Modify `app/services/s3_service.py` to add new S3 operations. The service wraps boto3 and provides:
+- Bucket creation
+- Multipart upload management
+- Presigned URL generation
+
+## Deployment
+
+### AWS Production
+1. Use AWS S3 instead of LocalStack
+2. Set `S3_ENDPOINT_URL` to AWS S3 endpoint
+3. Use RDS for Redis or AWS ElastiCache
+4. Deploy with ECS, Lambda, or your preferred service
+
+### Environment Variables
+Ensure these are set in your deployment:
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_REGION`
+- `S3_BUCKET`
+- `REDIS_URL`
 
 ## Troubleshooting
 
-- **Redis Connection Issues**: Ensure Redis is running on `localhost:6379`
-- **S3 Credentials**: Verify AWS credentials in environment variables
-- **CORS Errors**: Check CORS middleware configuration in `app/main.py`
+**S3 Connection Error**
+- Verify LocalStack is running: `docker ps | grep localstack`
+- Check `S3_ENDPOINT_URL` configuration
+- Ensure bucket exists in LocalStack
+
+**Redis Connection Error**
+- Verify Redis is running on configured URL
+- Check `REDIS_URL` in `.env`
+- For Docker Compose: ensure service names match
+
+**Presigned URL Expires Too Quickly**
+- Check expiration time settings in `app/services/s3_service.py`
+- Default is 1 hour; adjust as needed
+
+## Performance Considerations
+
+- **Multipart uploads**: Recommended for files > 100MB
+- **Presigned URLs**: Good for client-side uploads, reduces server load
+- **Redis caching**: Keeps metadata in-memory for fast access
+- **Cleanup intervals**: Balance between memory usage and cleanup frequency
+
+## Contributing
+
+1. Create a feature branch
+2. Add tests for new functionality
+3. Ensure all tests pass
+4. Submit a pull request
 
 ## License
 
-[Specify your license here]
+MIT License - See LICENSE file for details
 
 ## Support
 
-For issues and questions, please open an issue on the repository.
+For issues, questions, or suggestions:
+- Open an issue on GitHub
+- Check existing documentation in `/docs`
+- Review test cases for usage examples
 
+---
+
+**Built with ❤️ using FastAPI, Redis, and boto3**
